@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>☁ 云朵车 Sky Car</title>
+<style>
+*{box-sizing:border-box} html,body{margin:0;width:100%;height:100%;overflow:hidden}
+body{background:#77c7f2;font-family:monospace}
+#wrap{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center}
+canvas{width:min(100vw,960px);height:min(100vh,600px);image-rendering:pixelated;image-rendering:crisp-edges;background:#75c8f4}
+#start{position:fixed;inset:0;background:linear-gradient(#69bdf0,#d8f3ff);display:flex;align-items:center;justify-content:center;z-index:5}
+.card{width:min(88vw,420px);padding:28px;background:#20345ddd;border:4px solid white;box-shadow:0 8px 0 #10203d;color:white;text-align:center}
+h1{font-size:30px;margin:0 0 8px;color:#fff}
+p{font-size:14px;line-height:1.8}
+button{font:700 18px monospace;padding:12px 30px;border:3px solid white;background:#78d3ff;color:#18345a;box-shadow:0 5px 0 #10203d;cursor:pointer}
+#mobile{display:none;position:fixed;bottom:12px;left:0;right:0;z-index:3;text-align:center}
+.pad{display:inline-grid;grid-template-columns:55px 55px 55px;gap:6px}
+.pad button{width:55px;height:45px;padding:0;font-size:18px;opacity:.9}
+@media (pointer:coarse){#mobile{display:block}}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="game" width="960" height="600"></canvas></div>
+
+<div id="start">
+  <div class="card">
+    <h1>☁ 云朵车</h1>
+    <p>一辆漂浮在天空中的巨型云朵车。<br>里面有很多层、很多房间，还有会和你聊天的小人。</p>
+    <button id="startBtn">开始旅行</button>
+    <p style="font-size:12px">电脑：WASD / 方向键移动　E互动<br>手机：使用屏幕方向键</p>
+  </div>
+</div>
+
+<div id="mobile">
+  <div class="pad">
+    <span></span><button data-k="ArrowUp">▲</button><span></span>
+    <button data-k="ArrowLeft">◀</button><button data-k="KeyE">E</button><button data-k="ArrowRight">▶</button>
+    <span></span><button data-k="ArrowDown">▼</button><span></span>
+  </div>
+</div>
+
+<script>
+const C=document.getElementById("game"),ctx=C.getContext("2d");ctx.imageSmoothingEnabled=false;
+const keys={}; let started=false, floor=0, t=0, dialog=null;
+const p={x:175,y:0};
+const npc=[
+ {n:"小悠",f:0,x:290,c:"#f38ab7",m:["今天的云层好漂亮。","一起去三楼看云吗？"]},
+ {n:"阿洛",f:0,x:610,c:"#71b9ee",m:["厨房刚做了云朵蛋糕。","要不要尝一块？"]},
+ {n:"米娅",f:1,x:260,c:"#ae8bf1",m:["这里的游戏机永远不会停。","赢了我就给你一枚云朵币。"]},
+ {n:"诺亚",f:1,x:710,c:"#efa15c",m:["咖啡厅的窗边视野最好。","下午还能看到彩虹。"]},
+ {n:"星璃",f:2,x:650,c:"#78cf9a",m:["这里是观景层。","风吹过来的时候特别舒服。"]},
+ {n:"船长",f:3,x:790,c:"#ffd166",m:["欢迎来到云朵车驾驶舱。","下一站？我也不知道。"]}
+];
+
+function floorY(f){return [465,325,185,55][f]}
+function box(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(x,y,w,h)}
+function txt(s,x,y,z=15,c="#fff"){ctx.font="bold "+z+"px monospace";ctx.fillStyle=c;ctx.fillText(s,x,y)}
+function cloud(x,y,s){
+  const q=(a,b,w,h,c)=>box(x+a*s,y+b*s,w*s,h*s,c);
+  q(0,18,150,40,"#f9fcff");q(15,5,52,48,"#fff");q(50,-8,65,65,"#fff");q(100,8,40,52,"#fff");q(8,48,135,18,"#dbeeff");
+}
+function sky(){
+  let g=ctx.createLinearGradient(0,0,0,600);g.addColorStop(0,"#4aaeea");g.addColorStop(1,"#d9f5ff");ctx.fillStyle=g;ctx.fillRect(0,0,960,600);
+  for(let i=0;i<8;i++){let xx=((i*157-t*.18)%1100)-80, yy=30+(i*73)%420;cloud(xx,yy,.65+(i%3)*.18)}
+  txt("SKY ROUTE 07",28,32,12,"#e8fbff");
+}
+function car(){
+  // 外壳
+  cloud(58,18,5.72);
+  // 四层内部
+  const ys=[415,275,135,5];
+  const cs=["#f4dec3","#4f416f","#dff2d9","#273657"];
+  for(let f=0;f<4;f++){
+    box(94,ys[f],772,104,cs[f]);
+    box(94,ys[f]+98,772,7,"#789bb5");
+  }
+  // 大玻璃罩
+  ctx.strokeStyle="#eaffff";ctx.lineWidth=5;ctx.beginPath();ctx.ellipse(480,62,382,150,Math.PI,Math.PI*2);ctx.stroke();
+  ctx.fillStyle="#ffffff18";ctx.beginPath();ctx.ellipse(480,62,380,148,Math.PI,Math.PI*2);ctx.fill();
+  // 电梯
+  box(452,28,56,520,"#9eeaff28");box(462,40,36,500,"#315c7b99");
+  for(let f=0;f<4;f++)box(452,floorY(f)-30,56,5,"#fff");
+  // 楼梯
+  for(let f=0;f<3;f++){let y=floorY(f)-25;for(let i=0;i<8;i++)box(535+i*6,y-i*5,55-i*6,5,"#795943")}
+  // 家具
+  box(125,455,120,34,"#bd805e");box(145,442,78,20,"#d0a16d");
+  box(635,452,130,35,"#d5ad6b");box(660,430,22,25,"#a36e50");
+  for(let i=0;i<4;i++){box(120+i*55,295,38,55,"#292044");box(127+i*55,302,24,18,"#87e8ff")}
+  box(630,300,155,45,"#9a6948");box(650,285,18,15,"#ffe4ac");box(700,285,18,15,"#ffe4ac");
+  for(let i=0;i<8;i++){let x=120+i*82;box(x,160,7,32,"#795d42");box(x-8,148,23,17,"#69bd78")}
+  box(625,155,135,22,"#6bc8e2");box(645,148,95,7,"#b7f5ff");
+  box(585,505,180,35,"#172238");box(620,514,105,18,"#287d98");box(650,516,45,12,"#71f4ff");
+  txt("1F 生活层",110,503,14,"#55433c");txt("2F 娱乐层",110,363,14);txt("3F 观景层",110,223,14,"#284d42");txt("B1 驾驶舱",110,583,14);
+}
+function person(x,y,c,name,me=false){
+  box(x-10,y+26,22,5,"#0002");box(x-6,y+18,5,11,"#34405b");box(x+2,y+18,5,11,"#34405b");
+  box(x-9,y+2,19,19,me?"#6799f3":c);box(x-8,y-10,17,14,"#f2c39e");box(x-9,y-12,19,7,"#50374f");
+  if(!me)txt(name,x-20,y-18,10,"#20314f");
+}
+function hud(){
+  box(18,16,250,70,"#17294fd9");box(30,28,40,40,"#f2c39e");box(38,35,24,18,"#6799f3");
+  txt("云朵车旅客",84,43,15);txt("Lv.1   ♥ ♥ ♥",84,66,13,"#ffd0df");
+  box(700,16,242,70,"#17294fd9");txt("☁ 飞行中",720,42,16);txt("高度 8420m  · 速度 中",720,65,12,"#c9efff");
+  box(18,535,320,45,"#17294fd9");txt("↑↓ 上下楼   E 与小人互动",32,563,13);
+}
+function draw(){
+  sky();car();
+  for(const n of npc)person(n.x,floorY(n.f),n.c,n.n);
+  person(p.x,floorY(floor)-5,"#6799f3","你",true);
+  const near=npc.find(n=>n.f===floor&&Math.abs(n.x-p.x)<55);
+  if(near&&!dialog){box(near.x-38,floorY(floor)-48,76,24,"#fff");txt("E  互动",near.x-29,floorY(floor)-31,11,"#23324d")}
+  hud();
+  if(dialog){
+    box(65,405,830,145,"#132342f2");ctx.strokeStyle="#b9edff";ctx.lineWidth=3;ctx.strokeRect(65,405,830,145);
+    box(88,427,55,55,dialog.c);txt(dialog.n,158,445,16,"#ffe7a9");txt(dialog.m[dialog.i],158,476,15);
+    txt(dialog.i<dialog.m.length-1?"E 继续":"E 关闭",750,528,12,"#b9edff");
+  }
+  t++; requestAnimationFrame(draw);
+}
+function press(k,v){keys[k]=v}
+addEventListener("keydown",e=>{press(e.code,true);press(e.key,true);if(e.key==="Escape")dialog=null;
+  if((e.key==="e"||e.key==="E")&&started){
+    if(dialog){dialog.i++;if(dialog.i>=dialog.m.length)dialog=null}
+    else {let n=npc.find(n=>n.f===floor&&Math.abs(n.x-p.x)<55);if(n)dialog={...n,i:0}}
+  }
+});
+addEventListener("keyup",e=>{press(e.code,false);press(e.key,false)});
+document.querySelectorAll("[data-k]").forEach(b=>{
+  b.onpointerdown=()=>press(b.dataset.k,true);b.onpointerup=()=>press(b.dataset.k,false);b.onpointercancel=()=>press(b.dataset.k,false)
+});
+document.getElementById("startBtn").onclick=()=>{started=true;document.getElementById("start").style.display="none";p.y=floorY(0)-5};
+function loop(){if(started&&!dialog){
+  let dx=(keys.ArrowRight||keys.KeyD||keys.d?1:0)-(keys.ArrowLeft||keys.KeyA||keys.a?1:0);
+  p.x+=dx*2.5;p.x=Math.max(112,Math.min(840,p.x));
+  if((keys.ArrowUp||keys.KeyW||keys.w)&&Math.abs(p.x-480)<85&&floor<3){floor++;keys.ArrowUp=keys.KeyW=keys.w=false}
+  if((keys.ArrowDown||keys.KeyS||keys.s)&&Math.abs(p.x-480)<85&&floor>0){floor--;keys.ArrowDown=keys.KeyS=keys.s=false}
+}setTimeout(loop,16)} loop(); draw();
+</script>
+</body>
+</html>
